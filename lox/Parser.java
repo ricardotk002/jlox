@@ -2,6 +2,7 @@ package lox;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import static lox.TokenType.*;
 
@@ -49,12 +50,53 @@ class Parser {
   }
 
   private Stmt statement() {
+    if (match(FOR)) return forStatement();
     if (match(IF)) return ifStatement();
     if (match(PRINT)) return printStatement();
     if (match(WHILE)) return whileStatement();
     if (match(LEFT_BRACE)) return new Stmt.Block(block());
 
     return expressionStatement();
+  }
+
+  private Stmt forStatement() {
+    consume(LEFT_PAREN, "Expect '(' after for.");
+
+    Stmt init;
+    if (match(SEMI_COLON)) {
+      init = null;
+    } else if (match(VAR)) {
+      init = varDeclaration();
+    } else {
+      init = expressionStatement();
+    }
+
+    Expr cond = null;
+    if (!check(SEMI_COLON)) {
+      cond = expression();
+    }
+    consume(SEMI_COLON, "Expect ';' after loop condition.");
+
+    Expr post = null;
+    if (!check(RIGHT_PAREN)) {
+      post = expression();
+    }
+    consume(RIGHT_PAREN, "Expect ')' after for clauses.");
+
+    Stmt body = statement();
+
+    if (post != null) {
+      body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(post)));
+    }
+
+    if (cond == null) cond = new Expr.Literal(true);
+    body = new Stmt.While(cond, body);
+
+    if (init != null) {
+      body = new Stmt.Block(Arrays.asList(init, body));
+    }
+
+    return body;
   }
 
   private Stmt ifStatement() {
