@@ -122,14 +122,9 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
   @Override
   public Object visitAssignExpr(Expr.Assign expr) {
-    Object value = null;
-
-    if (expr.value != null) {
-      value = evaluate(expr.value);
-    }
-
-    env.define(expr.name.lexeme, value);
-    return null;
+    Object value = evaluate(expr.value);
+    env.assign(expr.name, value);
+    return value;
   }
 
   private void execute(Stmt stmt) {
