@@ -2,10 +2,13 @@ package lox;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
   final Environment globals = new Environment();
   private Environment env = globals;
+  private final Map<Expr, Integer> locals = new HashMap<>();
 
   Interpreter() {
     globals.define("clock", new LoxCallable() {
@@ -114,20 +117,6 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     return null;
   }
 
-  private Object evaluate(Expr expr) {
-    return expr.accept(this);
-  }
-
-  void interpret(List<Stmt> statements) {
-    try {
-      for (Stmt stmt : statements) {
-        execute(stmt);
-      }
-    } catch (RuntimeError err) {
-      Lox.runtimeError(err);
-    }
-  }
-
   @Override
   public Void visitVarStmt(Stmt.Var stmt) {
     Object value = null;
@@ -142,13 +131,21 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
   @Override
   public Object visitVariableExpr(Expr.Variable expr) {
-    return env.get(expr.name);
+    return lookUpVariable(expr.name, expr);
   }
 
   @Override
   public Object visitAssignExpr(Expr.Assign expr) {
     Object value = evaluate(expr.value);
-    env.assign(expr.name, value);
+
+    Integer distance = locals.get(expr);
+
+    if (distance != null) {
+      env.assignAt(distance, expr.name, value);
+    } else {
+      globals.assign(expr.name, value);
+    }
+
     return value;
   }
 
@@ -211,16 +208,44 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     return null;
   }
 
-  private void execute(Stmt stmt) {
-    stmt.accept(this);
-  }
-
   @Override
   public Void visitReturnStmt(Stmt.Return stmt) {
     Object value = null;
     if (stmt.value != null) value = evaluate(stmt.value);
 
     throw new Return(value);
+  }
+
+  private Object lookUpVariable(Token name, Expr expr) {
+    Integer distance = locals.get(expr);
+
+    if (distance != null) {
+      return env.getAt(distance, name.lexeme);
+    } else {
+      return globals.get(name);
+    }
+  }
+
+  void interpret(List<Stmt> statements) {
+    try {
+      for (Stmt stmt : statements) {
+        execute(stmt);
+      }
+    } catch (RuntimeError err) {
+      Lox.runtimeError(err);
+    }
+  }
+
+  private Object evaluate(Expr expr) {
+    return expr.accept(this);
+  }
+
+  private void execute(Stmt stmt) {
+    stmt.accept(this);
+  }
+
+  void resolve(Expr expr, int depth) {
+    locals.put(expr, depth);
   }
 
   void executeBlock(List<Stmt> statements, Environment environment) {
